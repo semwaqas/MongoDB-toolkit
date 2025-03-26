@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "MongoDB-toolkit"
+version = "0.1.0"
+description = "A Mongodb toolkit for Function Calling and AI Agents"
+authors = [{ name = "Ateeq Azam", email = "mr.ateeqazam@gmail.com" }]
+license = { text = "CC BY-ND" }
+readme = "README.md"
+keywords = ["AI Agents", "Function Calling", "Tool Calling", "Mongodb", "Toolkit", "Langchain"]
+dependencies = ["pymongo", "langchain",]
+
+[project.urls]
+Homepage = "https://github.com/semwaqas/MongoDB-toolkit"
+Repository = "https://github.com/semwaqas/MongoDB-toolkit"
