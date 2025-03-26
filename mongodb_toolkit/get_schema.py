@@ -2,8 +2,6 @@ import sys
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure, OperationFailure
 from bson import ObjectId, DBRef, MinKey, MaxKey, Timestamp, Int64, Decimal128, Binary, Code, Regex
-from collections import defaultdict
-import pprint
 
 # REQUIRED: Set the name of the database you want to inspect
 DB_TO_INSPECT = "database"

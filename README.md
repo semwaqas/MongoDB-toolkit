@@ -26,8 +26,8 @@ pip install mongodb-toolkit
 Or, install directly from the source code:
 
 ```bash
-git clone https://your-repo-url/mongodb-toolkit.git
-cd mongodb-toolkit
+git clone https://github.com/semwaqas/MongoDB-toolkit.git
+cd MongoDB-toolkit
 pip install .
 ```
 
@@ -57,7 +57,7 @@ from pymongo import MongoClient
 
 # --- Configuration ---
 MONGO_URI = "mongodb://localhost:27017/"
-DB_NAME = "my_database"
+DB_NAME = "database"
 COLLECTION_NAME = "my_collection"
 SAMPLE_SIZE = 50 # For schema generation
 
