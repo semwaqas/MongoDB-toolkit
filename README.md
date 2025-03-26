@@ -144,75 +144,87 @@ if not syntax_errors and (not collection_schema or not schema_validation_errors)
 Import the tools and add them to your LangChain agent's tool list. The agent can then decide which tool to use based on the user's request or the workflow stage.
 
 ```python
-from langchain_openai import ChatOpenAI # Or your preferred Chat model
+import os
+from langchain_openai import ChatOpenAI
 from langchain.agents import AgentExecutor, create_tool_calling_agent
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
-# Import the tools from the toolkit
-from mongodb_toolkit import (
+# --- !!! Set Environment Variables BEFORE running this !!! ---
+# Example:
+# export MONGODB_URI="mongodb+srv://user:pass@cluster..."
+# export MONGODB_DB_NAME="production_db"
+# Or use a .env file and python-dotenv
+
+# Import the configured tools
+# This will print the URI/DB being used from the toolkit setup
+from mongodb_toolkit.toolkit import (
     get_schema_tool,
     validate_query_syntax_tool,
     validate_query_tool,
-    execute_query_tool
+    execute_query_tool,
+    DB_NAME # Get DB_NAME if needed for prompt templating
 )
 
-# Ensure OPENAI_API_KEY is set in your environment or configure client
-llm = ChatOpenAI(model="gpt-4o-mini", temperature=1) 
+# --- Setup ---
+llm = ChatOpenAI(model="gpt-4-turbo-preview", temperature=0)
 
-# Define the tools the agent can use
 tools = [
     get_schema_tool,
     validate_query_syntax_tool,
-    validate_query_tool,
+    validate_query_tool, # Make sure the agent knows how to get the schema to pass to this tool
     execute_query_tool
 ]
 
-# --- Agent Prompt (Example) ---
-# You'll need a prompt engineered for database interaction
-# This is a simplified example
-prompt_template = """
-You are an assistant that interacts with a MongoDB database.
+# --- Agent Prompt (Revised) ---
+# The prompt now focuses only on the task and the arguments the LLM needs to generate
+prompt_template = f"""
+You are an assistant that interacts with the '{DB_NAME}' MongoDB database.
 You have access to the following tools:
 
-{tools}
+{{tools}}
 
-Use the tools in sequence:
-1. If you don't know the database structure, use 'get_schema' first. Provide the database connection details (URI, DB name).
-2. Based on the user request and the schema, generate a MongoDB query filter document.
-3. Use 'validate_query_syntax' to check the basic structure of your generated query.
-4. If syntax is valid and you have a schema, use 'validate_query' to check the query against the schema.
-5. If a validation tool returns errors, *you must* correct the query based on the error message and try validating again (up to 3 attempts per query). Do not execute invalid queries.
-6. If the query passes all validations, use 'execute_query' to run it. Provide the connection details and the validated query filter.
-7. Respond to the user with the results or a summary.
+Use the tools in sequence for complex requests:
+1. If the data structure is unknown, use 'get_database_schema'. You can optionally specify a 'target_collection_name'.
+2. Based on the user request and the schema (if available), generate a MongoDB query filter document (as a dictionary).
+3. Use 'validate_query_syntax' providing the 'query_doc' to check its basic structure.
+4. (Optional but Recommended) If you have the schema, use 'validate_query_against_schema' providing the 'query_doc' and the 'expected_schema' you received earlier.
+5. If validation fails, *you must* correct the query based on the error message and retry validation (up to 3 attempts). Do not execute invalid queries.
+6. If the query is valid, use 'execute_find_query'. You MUST provide the 'collection_name' and the 'query_filter'. You can optionally provide 'projection', 'limit', 'skip', or 'sort'.
+7. Summarize the results for the user. If you executed a query and got results, present them concisely. If no results were found, state that.
 
-User Request: {input}
-Intermediate Steps: {agent_scratchpad}
+User Request: {{input}}
+
+Agent Scratchpad:
+{{agent_scratchpad}}
 """
 
 prompt = ChatPromptTemplate.from_messages([
     ("system", prompt_template),
     ("human", "{input}"),
-    # Use MessagesPlaceholder for agent scratchpad/history
+    MessagesPlaceholder(variable_name="agent_scratchpad"),
 ])
 
 
 # --- Create Agent ---
-# Using the new create_tool_calling_agent method
 agent = create_tool_calling_agent(llm, tools, prompt)
-agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+# Use handle_parsing_errors=True for more robustness if LLM outputs malformed args
+agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True, handle_parsing_errors=True)
 
 # --- Run the Agent ---
-# The agent will use the tool descriptions to decide when to call them.
-# Tool inputs need to be structured correctly (e.g., dictionaries for queries/schemas)
-# You might need helper functions or input parsing depending on your agent setup.
-
+# Now the input only needs the user's actual request
 response = agent_executor.invoke({
-    "input": "Find active users in the 'users' collection who are older than 40 in the 'testdb' database."
-    # Add database connection info if not hardcoded in tools or passed differently
+    "input": f"In the '{DB_NAME}' database, find active users in the 'users' collection who are older than 40."
 })
 
-print(response['output'])
+print("\n--- Final Response ---")
+print(response.get('output', 'No output found.'))
 
+# Example 2: More complex query
+# response = agent_executor.invoke({
+#     "input": f"Show me the name and city (_id excluded) for the 2 oldest users in the 'users' collection within the '{DB_NAME}' database."
+# })
+# print("\n--- Final Response ---")
+# print(response.get('output', 'No output found.'))
 ```
 
 ## API Reference
