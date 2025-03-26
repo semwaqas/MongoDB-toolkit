@@ -156,9 +156,8 @@ from mongodb_toolkit import (
     execute_query_tool
 )
 
-# --- Setup ---
 # Ensure OPENAI_API_KEY is set in your environment or configure client
-llm = ChatOpenAI(model="gpt-4-turbo-preview", temperature=0) # Example model
+llm = ChatOpenAI(model="gpt-4o-mini", temperature=1) 
 
 # Define the tools the agent can use
 tools = [
@@ -208,7 +207,7 @@ agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
 # You might need helper functions or input parsing depending on your agent setup.
 
 response = agent_executor.invoke({
-    "input": "Find active users in the 'users' collection who are older than 40 in the 'testdb' database. Use mongodb://localhost:27017/ as the connection."
+    "input": "Find active users in the 'users' collection who are older than 40 in the 'testdb' database."
     # Add database connection info if not hardcoded in tools or passed differently
 })
 
@@ -262,4 +261,4 @@ Contributions are welcome! Please feel free to submit pull requests or open issu
 
 ## License
 
-Distributed under the MIT License. See `LICENSE` file for more information.
+Distributed under the Creative Commons Attribution-NoDerivatives (CC BY-ND) License. See `LICENSE` file for more information.

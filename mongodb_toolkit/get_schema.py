@@ -226,39 +226,3 @@ def generate_db_schema(db_name, mongo_uri, sample_size, target_collection_name=N
         if client:
             print("\nClosing MongoDB connection.")
             client.close()
-
-# Script Execution
-if __name__ == "__main__":
-    # Basic validation
-    if not DB_TO_INSPECT or DB_TO_INSPECT == "your_database_name":
-        print("Error: Please set the 'DB_TO_INSPECT' variable in the script before running.", file=sys.stderr)
-        sys.exit(1)
-
-    print("Starting MongoDB schema inference...")
-    print(f"Target Database: {DB_TO_INSPECT}")
-    if TARGET_COLLECTION_NAME:
-        print(f"Target Collection: {TARGET_COLLECTION_NAME}")
-    print(f"Sample Size per Collection: {SCHEMA_SAMPLE_SIZE}")
-    print("-" * 60)
-
-    # Call the main function to get the schema
-    inferred_schema = generate_db_schema(
-        DB_TO_INSPECT,
-        MONGO_CONNECTION_URI,
-        SCHEMA_SAMPLE_SIZE,
-        TARGET_COLLECTION_NAME
-    )
-
-    print("\n" + "=" * 60)
-    print("Inferred Database Schema:")
-    print("=" * 60)
-
-    if inferred_schema is None:
-        print("Schema generation failed due to errors.")
-    elif not inferred_schema:
-         print("No collections found or analyzed.")
-    else:
-        # Pretty print the resulting schema
-        pprint.pprint(inferred_schema, indent=2, width=120)
-
-    print("\nSchema inference complete.")
