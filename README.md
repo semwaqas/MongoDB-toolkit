@@ -1,8 +1,8 @@
 
 # MongoDB Toolkit for LangChain (`MongoDB-toolkit`)
 
-[![PyPI version](https://badge.fury.io/py/MongoDB-toolkit.svg)](https://badge.fury.io/py/MongoDB-toolkit) <!-- Placeholder - Replace if you publish -->
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) <!-- Placeholder - Update if your license differs -->
+[![PyPI version](https://badge.fury.io/py/MongoDB-toolkit.svg)](https://badge.fury.io/py/MongoDB-toolkit)
+[![License: CC BY-ND](https://img.shields.io/badge/License-CC%20BY--ND-lightgrey.svg)](https://creativecommons.org/licenses/by-nd/4.0/)
 
 **`MongoDB-toolkit`** provides a structured way to connect LangChain Large Language Models (LLMs) with MongoDB databases. It offers tools for schema discovery, query syntax validation, and query execution, packaged within an easy-to-configure toolkit class.
 
@@ -28,7 +28,7 @@ pip install MongoDB-toolkit
 Or, install directly from the source code:
 
 ```bash
-git clone https://github.com/semwaqas/MongoDB-toolkit.git # Replace with your repo URL
+git clone https://github.com/semwaqas/MongoDB-toolkit.git
 cd MongoDB-toolkit
 pip install .
 ```
@@ -87,8 +87,6 @@ db_name = os.environ.get("MONGODB_DB_NAME")
 # ... rest of your code
 ```
 
-**Never hardcode credentials directly in your source code.**
-
 ## Usage with LangChain Agents
 
 1.  **Load Configuration:** Ensure `MONGODB_URI` and `MONGODB_DB_NAME` are accessible (e.g., loaded from environment variables).
@@ -138,7 +136,7 @@ tools = toolkit.get_tools()
 # Ensure OPENAI_API_KEY is set in environment for ChatOpenAI
 llm = ChatOpenAI(model="gpt-4o-mini", temperature=1) # Or your preferred model
 
-# Agent Prompt (using the refined version)
+# Agent Prompt
 prompt_template = f"""
 You are an assistant interacting with the '{db_name}' MongoDB database.
 You have access to these tools: {{tools}}
@@ -177,9 +175,7 @@ agent_executor = AgentExecutor(
 ```python
 # 5. Invoke Agent & 6. Close Connection
 try:
-    user_input = "Find python related questions in the mcqs bank"
-    # user_input = "Show the schema for the 'users' collection"
-    # user_input = "How many distinct skills are listed in the 'mcqs_bank' collection?" # Requires aggregate - not directly supported yet
+    user_input = "Find a Job for Python Developer."
 
     print(f"\n--- Running Agent for: '{user_input}' ---")
     response = agent_executor.invoke({"input": user_input})
@@ -192,7 +188,7 @@ except Exception as e:
     print(f"Error: {e}")
 
 finally:
-    # --- Crucial: Ensure connection is closed ---
+    # Crucial: Ensure connection is closed
     print("\n--- Cleaning up ---")
     toolkit.close()
 ```
@@ -206,50 +202,50 @@ Invoking: `get_mongodb_database_schema` with `{}`
 [0mGetting schema for database: 'database'
 Establishing new MongoDB connection to database 'database'...
 MongoDB connection successful.
-Found collections: mcqs_bank, industries, employees, companies, certifications, designations, chat_dataset, salery_prediction_dataset, chat_history, addresses, employee_agent_history, skills, jobs, job_agent_history
+Found collections: {________, ________, ________, ________, ________} # A list of Mongodb collections
 --------------------
-Analyzing collection: 'mcqs_bank'
-  Sampling up to 10 documents from 'mcqs_bank'...
+Analyzing collection: 'mc.....k'
+  Sampling up to 10 documents from 'mc.....k'...
   Analyzed 10 documents.
 --------------------
-Analyzing collection: 'industries'
-  Sampling up to 10 documents from 'industries'...
+Analyzing collection: 'ind.....s'
+  Sampling up to 10 documents from 'ind.....s'...
   Analyzed 10 documents.
 --------------------
-Analyzing collection: 'employees'
-  Sampling up to 10 documents from 'employees'...
+Analyzing collection: 'em......s'
+  Sampling up to 10 documents from 'em......s'...
   Analyzed 10 documents.
 --------------------
-Analyzing collection: 'companies'
-  Sampling up to 10 documents from 'companies'...
+Analyzing collection: 'co......s'
+  Sampling up to 10 documents from 'co......s'...
   Analyzed 10 documents.
 --------------------
-Analyzing collection: 'certifications'
-  Sampling up to 10 documents from 'certifications'...
+Analyzing collection: 'ce........s'
+  Sampling up to 10 documents from 'ce........s'...
   Analyzed 10 documents.
 --------------------
-Analyzing collection: 'designations'
-  Sampling up to 10 documents from 'designations'...
+Analyzing collection: 'de........s'
+  Sampling up to 10 documents from 'de........s'...
   Analyzed 10 documents.
 --------------------
-Analyzing collection: 'chat_dataset'
-  Sampling up to 10 documents from 'chat_dataset'...
+Analyzing collection: 'ch........t'
+  Sampling up to 10 documents from 'ch........t'...
   Analyzed 10 documents.
 --------------------
 Analyzing collection: 'salery_prediction_dataset'
   Sampling up to 10 documents from 'salery_prediction_dataset'...
   Analyzed 10 documents.
 --------------------
-Analyzing collection: 'chat_history'
-  Sampling up to 10 documents from 'chat_history'...
+Analyzing collection: 'ch......ry'
+  Sampling up to 10 documents from 'ch......ry'...
   Analyzed 10 documents.
 --------------------
-Analyzing collection: 'addresses'
-  Sampling up to 10 documents from 'addresses'...
+Analyzing collection: 'ad........s'
+  Sampling up to 10 documents from 'ad........s'...
   Analyzed 10 documents.
 --------------------
-Analyzing collection: 'employee_agent_history'
-  Sampling up to 10 documents from 'employee_agent_history'...
+Analyzing collection: '_....._history'
+  Sampling up to 10 documents from '_....._history'...
   Analyzed 7 documents.
 --------------------
 Analyzing collection: 'skills'
@@ -260,8 +256,8 @@ Analyzing collection: 'jobs'
   Sampling up to 10 documents from 'jobs'...
   Analyzed 10 documents.
 --------------------
-Analyzing collection: 'job_agent_history'
-  Sampling up to 10 documents from 'job_agent_history'...
+Analyzing collection: '.........._agent_history'
+  Sampling up to 10 documents from '.........._agent_history'...
   Analyzed 10 documents.
 
 
@@ -270,7 +266,7 @@ Analyzing collection: 'job_agent_history'
   Limit: 10
 
 Query executed. Found 1 documents.
-[38;5;200m[1;3m[{'_id': ObjectId('67b3445618bb537cc1f6f27c'), 'designationId': ObjectId('67adf91f44342fdc58b18790'), 'salaryRangeFrom': 50000, 'salaryRangeTo': 80000, 'salaryCurrency': 'USD', 'salaryType': 'Monthly', 'jobType': 'Full-Time', 'description': 'Looking for an experienced AI/ML engineer.', 'experienceFrom': 2, 'experienceTo': 5, 'noOfCandidates': 1, 'isVerifiedCandidateNeeded': True, 'addressId': ObjectId('67adf92044342fdc58b18791'), 'isActive': True, 'applicantPreference': 'Nearby', 'gender': 'Any', 'jobShift': 'Day', 'requiredSkills': ['Python', 'Django'], 'verifiedSkills': ['REST API', 'SQL'], 'embeddings': [0.03542608022689819, -0.47762709856033325, 0.30901196599006653, ]}][0m[32;1m[1;3m
+[38;5;200m[1;3m[{'_id': ObjectId('67b3445618bb537cc1f6f27c'), '________': ObjectId('67adf91f44342fdc58b18790'), '________': 50000, '________': 80000, 'salaryCurrency': 'USD', '________': 'Monthly', 'jobType': 'Full-Time', '________': 'Looking for an experienced AI/ML engineer.', 'experienceFrom': 2, 'experienceTo': 5, 'noOfCandidates': 1, '________': True, 'addressId': ObjectId('67adf92044342fdc58b18791'), '________': True, 'applicantPreference': 'Nearby', 'gender': 'Any', 'jobShift': 'Day', '________': ['Python', 'Django'], '________': ['REST API', 'SQL'], '________': [0.03542608022689819, -0.47762709856033325, 0.30901196599006653, ]}][0m[32;1m[1;3m
 
 I found a job listing for a Python Developer:
 
