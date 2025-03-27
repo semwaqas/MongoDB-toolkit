@@ -1,4 +1,3 @@
-# mongodb_toolkit/exceptions.py
 class MongoToolkitError(Exception):
     """Base exception for the MongoDB Toolkit."""
     pass

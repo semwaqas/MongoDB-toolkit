@@ -1,15 +1,15 @@
 import sys
-from functools import lru_cache, wraps # Import wraps
+from functools import lru_cache, wraps
 from typing import List, Dict, Optional, Any, Tuple, Union
 
 from pymongo import MongoClient, ASCENDING, DESCENDING
 from pymongo.database import Database
 from pymongo.errors import ConnectionFailure, OperationFailure, ConfigurationError
 from langchain.tools import Tool, StructuredTool
-from pydantic.v1 import BaseModel # Ensure using v1 if needed
+from pydantic.v1 import BaseModel
 
 # Import models and utils
-from .models import GetSchemaInput, ValidateSyntaxInput, ExecuteQueryInput # SortItem is now part of ExecuteQueryInput schema
+from .models import GetSchemaInput, ValidateSyntaxInput, ExecuteQueryInput
 from .utils import generate_collection_schema, validate_query_syntax_recursive
 from .exceptions import ConfigurationError, SchemaError, ValidationError, ExecutionError
 
@@ -190,7 +190,7 @@ class MongoToolkit:
             sort=sort_list # Pass the list of dicts
         )
 
-    # --- (Original execute_mongodb_query function remains the same) ---
+    # (Original execute_mongodb_query function remains the same)
     def execute_mongodb_query(
         self,
         collection_name: str,
@@ -200,7 +200,7 @@ class MongoToolkit:
         skip: int = 0,
         sort: Optional[List[Dict[str, Any]]] = None # Receives list of dicts
     ) -> List[Dict[str, Any]]:
-        # ... (implementation remains the same - including internal sort processing) ...
+        # (implementation remains the same - including internal sort processing)
         db = self._get_db()
         try:
             collection = db[collection_name]
@@ -240,7 +240,7 @@ class MongoToolkit:
                  print("  Limit: No limit (0)")
 
 
-            results = list(cursor) # Execute query
+            results = list(cursor)
             print(f"Query executed. Found {len(results)} documents.")
             return results
 
@@ -263,7 +263,7 @@ class MongoToolkit:
 
         schema_tool = StructuredTool.from_function(
             name="get_mongodb_database_schema",
-            description=( # Keep the detailed description
+            description=(
                 f"Use this tool to get the schema of collections within the '{self.db_name}' MongoDB database. "
                 "This is essential for understanding data structure before creating queries. "
                 "ARGUMENTS: "
@@ -271,7 +271,7 @@ class MongoToolkit:
                 "**IMPORTANT: Only provide this if the user explicitly names a collection OR if you are certain based on previous context. If unsure, OMIT this argument to get schemas for ALL collections.** "
                 "- sample_size (int, default=10): Number of documents to sample for inference."
             ),
-            func=self._get_db_schema_wrapper, # Use the wrapper
+            func=self._get_db_schema_wrapper,
             args_schema=GetSchemaInput
         )
 

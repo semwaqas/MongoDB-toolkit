@@ -1,4 +1,3 @@
-# mongodb_toolkit/utils.py
 import re
 from bson import ObjectId, DBRef, MinKey, MaxKey, Timestamp, Int64, Decimal128, Binary, Code, Regex
 from pymongo import ASCENDING, DESCENDING # Import directly
@@ -11,8 +10,7 @@ import sys # For stderr printing
 
 from .exceptions import SchemaError
 
-# --- Constants ---
-# Define known MongoDB query operators (expand as needed)
+# Constants
 # See: https://www.mongodb.com/docs/manual/reference/operator/query/
 KNOWN_QUERY_OPERATORS = {
     # Comparison
@@ -81,7 +79,7 @@ def _infer_schema_recursive(obj):
         merged_element_schema = None
         for item in obj:
             item_schema_info = _infer_schema_recursive(item)
-            # --- Defensive check for item_schema_info ---
+            # Defensive check for item_schema_info
             if item_schema_info is None:
                  print(f"Warning: _infer_schema_recursive returned None for item '{item}' in array. Skipping.", file=sys.stderr)
                  continue # Skip if inference fails for an item
@@ -90,7 +88,7 @@ def _infer_schema_recursive(obj):
                 merged_element_schema = item_schema_info
             else:
                 merged_element_schema = _merge_schema_info(merged_element_schema, item_schema_info)
-                # --- Defensive check after merge ---
+                # Defensive check after merge
                 if merged_element_schema is None:
                      print(f"Warning: _merge_schema_info returned None while merging array element schemas. Resetting.", file=sys.stderr)
                      # Decide how to handle: maybe reset to current item_schema_info or skip?
@@ -110,7 +108,6 @@ def _infer_schema_recursive(obj):
         # Primitive type
         return {"types": {bson_type}}
 
-# --- !! MODIFIED MERGE FUNCTION !! ---
 def _merge_schema_info(existing_info, new_info):
     """Merges two schema information dictionaries more robustly."""
     # Handle cases where one input might be invalid/None (shouldn't happen often with checks above)
@@ -131,7 +128,7 @@ def _merge_schema_info(existing_info, new_info):
     # Merge nested schemas ('schema' for objects)
     if "schema" in new_info:
         new_nested_schema = new_info["schema"]
-        # --- Check if new_nested_schema is iterable ---
+        # Check if new_nested_schema is iterable
         if isinstance(new_nested_schema, Mapping):
             if "schema" not in merged_info or not isinstance(merged_info.get("schema"), Mapping):
                 # If existing doesn't have a schema or it's invalid, just take the new one
@@ -142,7 +139,7 @@ def _merge_schema_info(existing_info, new_info):
                 schema2 = new_nested_schema      # Known to be Mapping here
                 merged_nested = schema1.copy()
                 for key, value2 in schema2.items():
-                    # --- Ensure value2 is valid before merging ---
+                    # Ensure value2 is valid before merging
                     if not isinstance(value2, Mapping):
                         print(f"Warning: Invalid value found for key '{key}' in nested schema merge. Skipping.", file=sys.stderr)
                         continue
@@ -151,7 +148,7 @@ def _merge_schema_info(existing_info, new_info):
                         merged_nested[key] = value2
                     else:
                         merged_nested_item = merged_nested[key]
-                        # --- Ensure existing item is valid before merging ---
+                        # Ensure existing item is valid before merging
                         if not isinstance(merged_nested_item, Mapping):
                              print(f"Warning: Overwriting invalid existing schema for key '{key}' during merge.", file=sys.stderr)
                              merged_nested[key] = value2
@@ -169,7 +166,7 @@ def _merge_schema_info(existing_info, new_info):
     # Merge array element schemas ('element_schema' for arrays)
     if "element_schema" in new_info:
         new_element_schema = new_info["element_schema"]
-        # --- Check if new_element_schema is valid ---
+        # Check if new_element_schema is valid
         if isinstance(new_element_schema, Mapping):
             if "element_schema" not in merged_info or not isinstance(merged_info.get("element_schema"), Mapping):
                 # If existing doesn't have element_schema or it's invalid, take the new one
@@ -191,7 +188,7 @@ def _merge_schema_info(existing_info, new_info):
 
     return merged_info
 
-# --- (generate_collection_schema remains mostly the same, but benefits from robust merge) ---
+# (generate_collection_schema remains mostly the same, but benefits from robust merge)
 def generate_collection_schema(collection: Collection, sample_size: int) -> Optional[Dict[str, Any]]:
     """Infers the schema of a single MongoDB collection by sampling documents."""
     print(f"  Sampling up to {sample_size} documents from '{collection.name}'...")
@@ -200,7 +197,7 @@ def generate_collection_schema(collection: Collection, sample_size: int) -> Opti
         if not documents:
             print("  Collection is empty or no documents found in sample.")
             return None
-    # ... (error handling remains the same) ...
+    # (error handling remains the same)
     except OperationFailure as e:
         print(f"  Error sampling collection '{collection.name}': {e}")
         raise SchemaError(f"Operation failed while sampling {collection.name}: {e}") from e
@@ -215,7 +212,7 @@ def generate_collection_schema(collection: Collection, sample_size: int) -> Opti
         try:
             doc_schema_info = _infer_schema_recursive(doc)
 
-            # --- Defensive check: Ensure inference returned a dict ---
+            # Defensive check: Ensure inference returned a dict
             if not isinstance(doc_schema_info, Mapping):
                 print(f"Warning: Schema inference for document (ID: {doc.get('_id', 'N/A')}) failed, returned non-dict. Skipping doc.", file=sys.stderr)
                 continue
@@ -226,7 +223,7 @@ def generate_collection_schema(collection: Collection, sample_size: int) -> Opti
                 temp_merged = merged_collection_schema.copy()
 
                 for key, value_info in doc_inner_schema.items():
-                    # --- Defensive check: Ensure value_info is a dict ---
+                    # Defensive check: Ensure value_info is a dict
                     if not isinstance(value_info, Mapping):
                         print(f"Warning: Invalid schema info for key '{key}' in document (ID: {doc.get('_id', 'N/A')}). Skipping key.", file=sys.stderr)
                         continue
