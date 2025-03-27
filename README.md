@@ -1,201 +1,159 @@
-# MongoDB Toolkit for LangChain
 
-[![PyPI version](https://badge.fury.io/py/mongodb-toolkit.svg)](https://badge.fury.io/py/mongodb-toolkit)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+# MongoDB Toolkit for LangChain (`MongoDB-toolkit`)
 
-**`mongodb-toolkit`** provides a set of Python functions and pre-built LangChain tools designed to facilitate interaction between Large Language Models (LLMs) and MongoDB databases. It allows LLMs (via function/tool calling) to intelligently discover database schemas, validate query syntax and structure, and execute queries against your MongoDB instance.
+[![PyPI version](https://badge.fury.io/py/MongoDB-toolkit.svg)](https://badge.fury.io/py/MongoDB-toolkit) <!-- Placeholder - Replace if you publish -->
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) <!-- Placeholder - Update if your license differs -->
 
-This toolkit bridges the gap between natural language requests and structured MongoDB operations.
+**`MongoDB-toolkit`** provides a structured way to connect LangChain Large Language Models (LLMs) with MongoDB databases. It offers tools for schema discovery, query syntax validation, and query execution, packaged within an easy-to-configure toolkit class.
+
+This allows LLMs, through agents using function/tool calling, to intelligently interact with your data based on natural language requests.
 
 ## Features
 
-*   **Infer Database Schema:** Automatically sample collections to generate a representative schema (`generate_db_schema`). Essential for LLMs to understand data structure before crafting queries.
-*   **Validate Query Syntax:** Check if a MongoDB query filter document follows correct MongoDB syntax rules, without needing a schema (`validate_mongodb_query_syntax`). Catches basic structural errors.
-*   **Validate Query Against Schema:** Validate a query filter document against a previously generated schema, checking for valid field names, data types, and operator usage (`validate_query`). Ensures queries align with expected data structure.
-*   **Execute Queries:** Run validated MongoDB queries (`find` operations) against the database (`execute_mongodb_query`). *(Note: Implementation details for `execute_query.py` are assumed)*.
-*   **LangChain Tool Integration:** Provides ready-to-use `langchain.tools.Tool` instances for each core function, simplifying integration with LangChain agents and chains (`toolkit.py`).
+*   **Configuration-Focused:** Instantiate a `MongoToolkit` object with your database connection details. Tools are generated pre-configured, keeping credentials out of prompts.
+*   **Schema Discovery:** Provides a tool (`get_mongodb_database_schema`) for the LLM to fetch the schema of the entire database or specific collections. Essential for understanding data structure.
+*   **Query Syntax Validation:** Includes a tool (`validate_mongodb_query_syntax`) to check if a generated query dictionary adheres to MongoDB's basic syntax rules before execution.
+*   **Query Execution:** Offers a tool (`execute_mongodb_find_query`) to run validated MongoDB `find` queries, returning results with a configurable default limit (10).
+*   **LangChain Integration:** Designed for easy integration with LangChain agents using `StructuredTool` for robust argument handling.
+*   **Resource Management:** Includes a `close()` method to properly shut down the MongoDB connection.
 
 ## Installation
 
-You can install the toolkit directly from PyPI (once published):
+Install the package using pip:
 
 ```bash
-pip install mongodb-toolkit
+pip install MongoDB-toolkit
 ```
 
 Or, install directly from the source code:
 
 ```bash
-git clone https://github.com/semwaqas/MongoDB-toolkit.git
+git clone https://github.com/semwaqas/MongoDB-toolkit.git # Replace with your repo URL
 cd MongoDB-toolkit
 pip install .
 ```
 
-**Dependencies:** This package relies on `pymongo` and `langchain`. Ensure they are installed in your environment:
+**Dependencies:** This package requires:
+*   `pymongo[srv]>=4.0,<5.0`
+*   `langchain>=0.1.0,<0.2.0`
+*   `langchain-openai>=0.1.0`
+*   `pydantic>=1.9.0,<2.0.0`
+
+Install them if needed:
+```bash
+pip install "pymongo[srv]>=4.0,<5.0" "langchain>=0.1.0,<0.2.0" "langchain-openai>=0.1.0" "pydantic>=1.9.0,<2.0.0"
+```
+
+## Configuration (Important!)
+
+This toolkit **requires configuration before use**. You must provide your MongoDB connection URI and the target database name. The recommended way is through environment variables:
 
 ```bash
-pip install pymongo langchain
+# Example using export (Linux/macOS)
+export MONGODB_URI="mongodb+srv://your_user:<your_password>@your_cluster.mongodb.net/?retryWrites=true&w=majority"
+export MONGODB_DB_NAME="my_application_db"
+
+# Example using set (Windows Command Prompt)
+set MONGODB_URI="mongodb+srv://your_user:<your_password>@your_cluster.mongodb.net/?retryWrites=true&w=majority"
+set MONGODB_DB_NAME="my_application_db"
+
+# Example using $env: (Windows PowerShell)
+$env:MONGODB_URI="mongodb+srv://your_user:<your_password>@your_cluster.mongodb.net/?retryWrites=true&w=majority"
+$env:MONGODB_DB_NAME="my_application_db"
 ```
 
-## Usage
+Alternatively, you can use a `.env` file in your project root:
 
-The toolkit can be used in two main ways:
+```dotenv
+# .env file
+MONGODB_URI="mongodb+srv://your_user:<your_password>@your_cluster.mongodb.net/?retryWrites=true&w=majority"
+MONGODB_DB_NAME="my_application_db"
+```
 
-1.  **Direct Function Calls:** Import and use the functions directly in your Python code.
-2.  **LangChain Tools:** Integrate the pre-built tools into your LangChain agents or chains for LLM-driven database interaction.
+And load it in your Python script using `python-dotenv`:
 
-### 1. Direct Function Usage
-
+```bash
+pip install python-dotenv
+```
 ```python
-from mongodb_toolkit import (
-    generate_db_schema,
-    validate_mongodb_query_syntax,
-    validate_query,
-    execute_mongodb_query
-)
-from pymongo import MongoClient
+# your_script.py
+import os
+from dotenv import load_dotenv
 
-# --- Configuration ---
-MONGO_URI = "mongodb://localhost:27017/"
-DB_NAME = "database"
-COLLECTION_NAME = "my_collection"
-SAMPLE_SIZE = 50 # For schema generation
+load_dotenv() # Loads variables from .env file into environment
 
-# --- Example Workflow ---
-
-# 1. Generate Schema (Optional but recommended for validation)
-try:
-    print(f"Generating schema for database: {DB_NAME}")
-    db_schema = generate_db_schema(
-        db_name=DB_NAME,
-        mongo_uri=MONGO_URI,
-        sample_size=SAMPLE_SIZE
-        # target_collection_name=COLLECTION_NAME # Optional: limit to one collection
-    )
-    if db_schema:
-        print("Schema generated successfully.")
-        collection_schema = db_schema.get(COLLECTION_NAME, {})
-    else:
-        print("Failed to generate schema or DB/Collection not found.")
-        collection_schema = {}
-
-except Exception as e:
-    print(f"Error generating schema: {e}")
-    collection_schema = {}
-
-
-# 2. Define a Query (Example)
-# This might be generated by an LLM based on user input and the schema
-user_query_filter = {
-    "status": "active",
-    "age": {"$gte": 30},
-    "address.city": "Springfield"
-}
-
-
-# 3. Validate Query Syntax
-print("\nValidating query syntax...")
-syntax_errors = validate_mongodb_query_syntax(user_query_filter)
-if not syntax_errors:
-    print("Query syntax is valid.")
-else:
-    print("Query syntax errors found:")
-    for err in syntax_errors:
-        print(f"  - {err}")
-    # Handle errors - potentially ask LLM to correct
-
-
-# 4. Validate Query Against Schema (if schema available)
-if collection_schema and not syntax_errors:
-    print("\nValidating query against schema...")
-    schema_validation_errors = validate_query(user_query_filter, collection_schema)
-    if not schema_validation_errors:
-        print("Query is valid against the schema.")
-    else:
-        print("Query schema validation errors found:")
-        for err in schema_validation_errors:
-            print(f"  - {err}")
-        # Handle errors - potentially ask LLM to correct based on schema info
-
-# 5. Execute Query (if valid)
-# Assuming execute_mongodb_query takes URI, DB, Collection, and Filter
-if not syntax_errors and (not collection_schema or not schema_validation_errors):
-    print("\nExecuting query...")
-    try:
-        results = execute_mongodb_query(
-            mongo_uri=MONGO_URI,
-            db_name=DB_NAME,
-            collection_name=COLLECTION_NAME,
-            query_filter=user_query_filter
-            # Add other params like projection, limit if your function supports them
-        )
-        print("Query executed successfully. Results:")
-        # Process or display results (limit output for LLMs)
-        for doc in results: # Assuming results is an iterable like a cursor or list
-            print(doc)
-
-    except Exception as e:
-        print(f"Error executing query: {e}")
-
+mongo_uri = os.environ.get("MONGODB_URI")
+db_name = os.environ.get("MONGODB_DB_NAME")
+# ... rest of your code
 ```
 
-### 2. LangChain Tool Usage
+**Never hardcode credentials directly in your source code.**
 
-Import the tools and add them to your LangChain agent's tool list. The agent can then decide which tool to use based on the user's request or the workflow stage.
+## Usage with LangChain Agents
+
+1.  **Load Configuration:** Ensure `MONGODB_URI` and `MONGODB_DB_NAME` are accessible (e.g., loaded from environment variables).
+2.  **Import and Instantiate `MongoToolkit`:** Create an instance, passing the URI and database name.
+3.  **Get Tools:** Call the `get_tools()` method on the toolkit instance.
+4.  **Create Agent:** Use the obtained tools list when setting up your LangChain agent (e.g., using `create_tool_calling_agent`).
+5.  **Invoke Agent:** Run the agent executor with user input.
+6.  **Close Connection:** Use a `try...finally` block to ensure `toolkit.close()` is called to release the database connection.
 
 ```python
 import os
+from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
-# --- !!! Set Environment Variables BEFORE running this !!! ---
-# Example:
-# export MONGODB_URI="mongodb+srv://user:pass@cluster..."
-# export MONGODB_DB_NAME="production_db"
-# Or use a .env file and python-dotenv
+# Import the toolkit class
+from mongodb_toolkit import MongoToolkit, MongoToolkitError
+```
 
-# Import the configured tools
-# This will print the URI/DB being used from the toolkit setup
-from mongodb_toolkit.toolkit import (
-    get_schema_tool,
-    validate_query_syntax_tool,
-    validate_query_tool,
-    execute_query_tool,
-    DB_NAME # Get DB_NAME if needed for prompt templating
-)
+```python
+# 1. Load Configuration
+load_dotenv()
+mongo_uri = os.environ.get("MONGODB_URI")
+db_name = os.environ.get("MONGODB_DB_NAME")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
-# --- Setup ---
-llm = ChatOpenAI(model="gpt-4-turbo-preview", temperature=0)
+if not mongo_uri or not db_name:
+    raise ValueError("MONGODB_URI and MONGODB_DB_NAME environment variables must be set.")
+```
 
-tools = [
-    get_schema_tool,
-    validate_query_syntax_tool,
-    validate_query_tool, # Make sure the agent knows how to get the schema to pass to this tool
-    execute_query_tool
-]
+```python
+# 2. Instantiate Toolkit
+# Connection details are encapsulated here
+try:
+    toolkit = MongoToolkit(mongo_uri=mongo_uri, db_name=db_name)
+except MongoToolkitError as e:
+    print(f"Error initializing MongoToolkit: {e}")
+    exit(1) # Exit if toolkit setup fails
 
-# --- Agent Prompt (Revised) ---
-# The prompt now focuses only on the task and the arguments the LLM needs to generate
+# 3. Get Configured Tools
+tools = toolkit.get_tools()
+```
+
+```python
+# 4. Setup LLM and Agent
+# Ensure OPENAI_API_KEY is set in environment for ChatOpenAI
+llm = ChatOpenAI(model="gpt-4o-mini", temperature=1) # Or your preferred model
+
+# Agent Prompt (using the refined version)
 prompt_template = f"""
-You are an assistant that interacts with the '{DB_NAME}' MongoDB database.
-You have access to the following tools:
+You are an assistant interacting with the '{db_name}' MongoDB database.
+You have access to these tools: {{tools}}
 
-{{tools}}
-
-Use the tools in sequence for complex requests:
-1. If the data structure is unknown, use 'get_database_schema'. You can optionally specify a 'target_collection_name'.
-2. Based on the user request and the schema (if available), generate a MongoDB query filter document (as a dictionary).
-3. Use 'validate_query_syntax' providing the 'query_doc' to check its basic structure.
-4. (Optional but Recommended) If you have the schema, use 'validate_query_against_schema' providing the 'query_doc' and the 'expected_schema' you received earlier.
-5. If validation fails, *you must* correct the query based on the error message and retry validation (up to 3 attempts). Do not execute invalid queries.
-6. If the query is valid, use 'execute_find_query'. You MUST provide the 'collection_name' and the 'query_filter'. You can optionally provide 'projection', 'limit', 'skip', or 'sort'.
-7. Summarize the results for the user. If you executed a query and got results, present them concisely. If no results were found, state that.
+Follow these steps:
+1.  Determine if the database schema is needed to understand the data structure based on the user request.
+2.  If schema is needed, use 'get_mongodb_database_schema'. Provide 'target_collection_name' ONLY if specified or certain. Otherwise, omit it to get all schemas.
+3.  Identify the correct collection name(s) from the schema.
+4.  Generate a MongoDB query filter dictionary ('query_doc') based on the request and schema.
+5.  Validate the query using 'validate_mongodb_query_syntax'. If errors occur, fix the query and retry validation (max 3 attempts).
+6.  If syntax is valid, use 'execute_mongodb_find_query'. You MUST provide 'collection_name' and 'query_filter'. Optionally use 'projection', 'skip', 'sort'. Remember the query defaults to returning a maximum of 10 results unless you specify a different 'limit' (use 0 for unlimited results).
+7.  Respond to the user with a summary of the results or indicate if no results were found. Report errors if they occurred.
 
 User Request: {{input}}
-
-Agent Scratchpad:
-{{agent_scratchpad}}
+Agent Scratchpad: {{agent_scratchpad}}
 """
 
 prompt = ChatPromptTemplate.from_messages([
@@ -204,62 +162,161 @@ prompt = ChatPromptTemplate.from_messages([
     MessagesPlaceholder(variable_name="agent_scratchpad"),
 ])
 
-
-# --- Create Agent ---
-agent = create_tool_calling_agent(llm, tools, prompt)
-# Use handle_parsing_errors=True for more robustness if LLM outputs malformed args
-agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True, handle_parsing_errors=True)
-
-# --- Run the Agent ---
-# Now the input only needs the user's actual request
-response = agent_executor.invoke({
-    "input": f"In the '{DB_NAME}' database, find active users in the 'users' collection who are older than 40."
-})
-
-print("\n--- Final Response ---")
-print(response.get('output', 'No output found.'))
-
-# Example 2: More complex query
-# response = agent_executor.invoke({
-#     "input": f"Show me the name and city (_id excluded) for the 2 oldest users in the 'users' collection within the '{DB_NAME}' database."
-# })
-# print("\n--- Final Response ---")
-# print(response.get('output', 'No output found.'))
 ```
+
+```python
+agent = create_tool_calling_agent(llm, tools, prompt)
+agent_executor = AgentExecutor(
+    agent=agent,
+    tools=tools,
+    verbose=True,
+    handle_parsing_errors=True # Recommended for robustness
+)
+```
+
+```python
+# 5. Invoke Agent & 6. Close Connection
+try:
+    user_input = "Find python related questions in the mcqs bank"
+    # user_input = "Show the schema for the 'users' collection"
+    # user_input = "How many distinct skills are listed in the 'mcqs_bank' collection?" # Requires aggregate - not directly supported yet
+
+    print(f"\n--- Running Agent for: '{user_input}' ---")
+    response = agent_executor.invoke({"input": user_input})
+    print("\n--- Final Response ---")
+    print(response.get('output', 'No output found.'))
+
+except Exception as e:
+    print(f"\n--- Agent Execution Failed ---")
+    # Potentially log the full traceback here
+    print(f"Error: {e}")
+
+finally:
+    # --- Crucial: Ensure connection is closed ---
+    print("\n--- Cleaning up ---")
+    toolkit.close()
+```
+
+```
+[1m> Entering new AgentExecutor chain...[0m
+[32;1m[1;3m
+Invoking: `get_mongodb_database_schema` with `{}`
+
+
+[0mGetting schema for database: 'database'
+Establishing new MongoDB connection to database 'database'...
+MongoDB connection successful.
+Found collections: mcqs_bank, industries, employees, companies, certifications, designations, chat_dataset, salery_prediction_dataset, chat_history, addresses, employee_agent_history, skills, jobs, job_agent_history
+--------------------
+Analyzing collection: 'mcqs_bank'
+  Sampling up to 10 documents from 'mcqs_bank'...
+  Analyzed 10 documents.
+--------------------
+Analyzing collection: 'industries'
+  Sampling up to 10 documents from 'industries'...
+  Analyzed 10 documents.
+--------------------
+Analyzing collection: 'employees'
+  Sampling up to 10 documents from 'employees'...
+  Analyzed 10 documents.
+--------------------
+Analyzing collection: 'companies'
+  Sampling up to 10 documents from 'companies'...
+  Analyzed 10 documents.
+--------------------
+Analyzing collection: 'certifications'
+  Sampling up to 10 documents from 'certifications'...
+  Analyzed 10 documents.
+--------------------
+Analyzing collection: 'designations'
+  Sampling up to 10 documents from 'designations'...
+  Analyzed 10 documents.
+--------------------
+Analyzing collection: 'chat_dataset'
+  Sampling up to 10 documents from 'chat_dataset'...
+  Analyzed 10 documents.
+--------------------
+Analyzing collection: 'salery_prediction_dataset'
+  Sampling up to 10 documents from 'salery_prediction_dataset'...
+  Analyzed 10 documents.
+--------------------
+Analyzing collection: 'chat_history'
+  Sampling up to 10 documents from 'chat_history'...
+  Analyzed 10 documents.
+--------------------
+Analyzing collection: 'addresses'
+  Sampling up to 10 documents from 'addresses'...
+  Analyzed 10 documents.
+--------------------
+Analyzing collection: 'employee_agent_history'
+  Sampling up to 10 documents from 'employee_agent_history'...
+  Analyzed 7 documents.
+--------------------
+Analyzing collection: 'skills'
+  Sampling up to 10 documents from 'skills'...
+  Analyzed 10 documents.
+--------------------
+Analyzing collection: 'jobs'
+  Sampling up to 10 documents from 'jobs'...
+  Analyzed 10 documents.
+--------------------
+Analyzing collection: 'job_agent_history'
+  Sampling up to 10 documents from 'job_agent_history'...
+  Analyzed 10 documents.
+
+
+[0mExecuting find on database.jobs
+  Filter: {'$or': [{'jobType': 'Python Developer'}, {'requiredSkills': 'Python'}, {'verifiedSkills': 'Python'}]}
+  Limit: 10
+
+Query executed. Found 1 documents.
+[38;5;200m[1;3m[{'_id': ObjectId('67b3445618bb537cc1f6f27c'), 'designationId': ObjectId('67adf91f44342fdc58b18790'), 'salaryRangeFrom': 50000, 'salaryRangeTo': 80000, 'salaryCurrency': 'USD', 'salaryType': 'Monthly', 'jobType': 'Full-Time', 'description': 'Looking for an experienced AI/ML engineer.', 'experienceFrom': 2, 'experienceTo': 5, 'noOfCandidates': 1, 'isVerifiedCandidateNeeded': True, 'addressId': ObjectId('67adf92044342fdc58b18791'), 'isActive': True, 'applicantPreference': 'Nearby', 'gender': 'Any', 'jobShift': 'Day', 'requiredSkills': ['Python', 'Django'], 'verifiedSkills': ['REST API', 'SQL'], 'embeddings': [0.03542608022689819, -0.47762709856033325, 0.30901196599006653, ]}][0m[32;1m[1;3m
+
+I found a job listing for a Python Developer:
+
+### Job Details:
+- **Job Title**: AI/ML Engineer
+- **Job Type**: Full-Time
+- **Salary Range**: $50,000 - $80,000 (Monthly)
+- **Experience Required**: 2 to 5 years
+- **Description**: Looking for an experienced AI/ML engineer.
+- **Required Skills**: Python, Django
+- **Verified Skills**: REST API, SQL
+- **Applicant Preference**: Nearby candidates
+- **Gender Preference**: Any
+- **Job Shift**: Day
+- **Is Active**: Yes
+- **Verified Candidate Needed**: Yes
+
+If you need more information or assistance with the application process, feel free to ask![0m
+
+[1m> Finished chain.[0m
+
+--- Final Response ---
+I found a job listing for a Python Developer:
+
+### Job Details:
+- **Job Title**: AI/ML Engineer
+- **Job Type**: Full-Time
+- **Salary Range**: $50,000 - $80,000 (Monthly)
+- **Experience Required**: 2 to 5 years
+- **Description**: Looking for an experienced AI/ML engineer.
+- **Required Skills**: Python, Django
+- **Verified Skills**: REST API, SQL
+- **Applicant Preference**: Nearby candidates
+- **Gender Preference**: Any
+- **Job Shift**: Day
+- **Is Active**: Yes
+- **Verified Candidate Needed**: Yes
+
+If you need more information or assistance with the application process, feel free to ask!
+Closing MongoDB connection.
+```
+
 
 ## API Reference
 
-### Core Functions
-
-*   **`generate_db_schema(db_name: str, mongo_uri: str, sample_size: int = 100, target_collection_name: Optional[str] = None) -> dict`**
-    *   Connects to MongoDB, samples documents, and infers a schema structure.
-    *   Returns a dictionary representing the database schema.
-*   **`validate_mongodb_query_syntax(query_doc: dict) -> list`**
-    *   Checks a query filter dictionary for basic MongoDB syntax validity (operators, structure).
-    *   Returns a list of error strings (empty if valid).
-*   **`validate_query(query_doc: dict, expected_schema: dict) -> list`**
-    *   Validates a query filter dictionary against a provided schema dictionary. Checks field names, types, operator usage relative to the schema.
-    *   Returns a list of error strings (empty if valid).
-*   **`execute_mongodb_query(mongo_uri: str, db_name: str, collection_name: str, query_filter: dict, **kwargs) -> List[dict]`**
-    *   Executes a MongoDB `find` query. *(Signature is assumed - adjust based on your implementation)*.
-    *   Returns a list of documents found.
-
-### LangChain Tools
-
-These wrap the core functions for use with LangChain agents.
-
-*   **`get_schema_tool: Tool`**
-    *   **Description:** Generate a schema for a MongoDB database. Input should contain connection details. Output is the schema.
-    *   **Function:** `generate_db_schema`
-*   **`validate_query_syntax_tool: Tool`**
-    *   **Description:** Validate the syntax of a MongoDB query filter document. Input is the query document. Output indicates validity or lists errors. Suggests retrying corrections up to 3 times on error.
-    *   **Function:** `validate_mongodb_query_syntax`
-*   **`validate_query_tool: Tool`**
-    *   **Description:** Validate a MongoDB query filter document against a schema. Input includes the query document and the schema. Output indicates validity or lists errors. Suggests retrying corrections up to 3 times on error.
-    *   **Function:** `validate_query`
-*   **`execute_query_tool: Tool`**
-    *   **Description:** Execute a MongoDB query. Input includes connection details and the query filter document. Output is the query result.
-    *   **Function:** `execute_mongodb_query`
+Check [API Reference in Documentation](https://github.com/semwaqas/MongoDB-toolkit/blob/main/documentation.md)
 
 ## Contributing
 
