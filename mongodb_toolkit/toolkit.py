@@ -1,14 +1,15 @@
-# mongodb_toolkit/toolkit.py
 import sys
-from functools import lru_cache
-from typing import List, Dict, Optional, Any, Tuple
+from functools import lru_cache, wraps # Import wraps
+from typing import List, Dict, Optional, Any, Tuple, Union
 
 from pymongo import MongoClient, ASCENDING, DESCENDING
 from pymongo.database import Database
 from pymongo.errors import ConnectionFailure, OperationFailure, ConfigurationError
-from langchain.tools import Tool
+from langchain.tools import Tool, tool # Import tool decorator as an alternative
+from pydantic.v1 import BaseModel # Ensure using v1 if needed
 
-from .models import GetSchemaInput, ValidateSyntaxInput, SortItem, ExecuteQueryInput
+# Import models and utils
+from .models import GetSchemaInput, ValidateSyntaxInput, ExecuteQueryInput # SortItem is now part of ExecuteQueryInput schema
 from .utils import generate_collection_schema, validate_query_syntax_recursive
 from .exceptions import ConfigurationError, SchemaError, ValidationError, ExecutionError
 
@@ -151,6 +152,25 @@ class MongoToolkit:
             # For now, return string as per common tool patterns
             return error_string
 
+    def _execute_query_wrapper(self, **kwargs):
+        """Internal wrapper to unpack args from the Pydantic model."""
+        # Validate input using the Pydantic model (optional but good)
+        try:
+            validated_args = ExecuteQueryInput(**kwargs)
+        except Exception as e: # Catch Pydantic validation errors
+             raise ValidationError(f"Invalid input arguments for execute_find_query: {e}") from e
+
+        # Call the original function with unpacked arguments
+        return self.execute_mongodb_query(
+            collection_name=validated_args.collection_name,
+            query_filter=validated_args.query_filter,
+            projection=validated_args.projection,
+            limit=validated_args.limit,
+            skip=validated_args.skip,
+            # Pass sort as list of dicts, the main func handles conversion
+            sort=[item.dict() for item in validated_args.sort] if validated_args.sort else None
+        )
+
     def execute_mongodb_query(
         self,
         collection_name: str,
@@ -158,18 +178,8 @@ class MongoToolkit:
         projection: Optional[Dict[str, Any]] = None,
         limit: int = 0,
         skip: int = 0,
-        sort: Optional[List[Dict[str, Any]]] = None # Receives list of dicts from SortItem model
+        sort: Optional[List[Dict[str, Any]]] = None # Receives list of dicts
     ) -> List[Dict[str, Any]]:
-        """
-        Executes a MongoDB find query against a specified collection.
-        """
-        if not collection_name:
-            raise ExecutionError("collection_name cannot be empty.")
-        if not isinstance(query_filter, dict):
-            # Basic check, syntax validation tool should catch more
-            raise ExecutionError("query_filter must be a dictionary.")
-        if limit < 0: raise ValueError("limit cannot be negative.")
-        if skip < 0: raise ValueError("skip cannot be negative.")
 
         db = self._get_db()
         try:
@@ -222,7 +232,7 @@ class MongoToolkit:
             print(msg, file=sys.stderr)
             raise ExecutionError(msg) from e
 
-    @lru_cache(maxsize=1) # Cache the tools list once generated
+    @lru_cache(maxsize=1)
     def get_tools(self) -> List[Tool]:
         """
         Returns a list of configured LangChain tools bound to this toolkit instance.
@@ -231,22 +241,22 @@ class MongoToolkit:
         schema_tool = Tool.from_function(
             name="get_mongodb_database_schema",
             description=f"Use this tool to get the schema of collections within the '{self.db_name}' MongoDB database. Provide an optional 'target_collection_name' to get schema for only one collection, and 'sample_size' to control accuracy vs speed.",
-            func=self.get_db_schema, # Bound method
+            func=self.get_db_schema,
             args_schema=GetSchemaInput
         )
 
         validate_tool = Tool.from_function(
             name="validate_mongodb_query_syntax",
             description="Use this tool to validate the basic syntax of a MongoDB query filter document (dictionary) before execution. Checks for valid operators and structure. Input is the 'query_doc'. Returns 'Syntax is valid.' or lists errors.",
-            func=self.validate_mongodb_query_syntax, # Bound method
+            func=self.validate_mongodb_query_syntax,
             args_schema=ValidateSyntaxInput
         )
 
         execute_tool = Tool.from_function(
             name="execute_mongodb_find_query",
-            description=f"Use this tool to execute a MongoDB 'find' query against a specific collection in the '{self.db_name}' database after validating its syntax. Provide 'collection_name' and 'query_filter'. Optionally provide 'projection', 'limit', 'skip', or 'sort'. Returns a list of matching documents.",
-            func=self.execute_mongodb_query, # Bound method
-            args_schema=ExecuteQueryInput
+            description=f"Use this tool to execute a MongoDB 'find' query against a specific collection in the '{self.db_name}' database after validating its syntax. Provide arguments as a single JSON object matching the required schema (collection_name, query_filter, etc.). Returns a list of matching documents.",
+            func=self._execute_query_wrapper, # Use the wrapper here
+            args_schema=ExecuteQueryInput      # Schema defines the expected keys in the wrapper's kwargs
         )
 
         return [schema_tool, validate_tool, execute_tool]

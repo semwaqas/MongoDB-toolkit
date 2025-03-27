@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "MongoDB-toolkit"
-version = "0.1.0"
+version = "0.1.1"
 description = "A Mongodb toolkit for Function Calling and AI Agents"
 authors = [{ name = "Ateeq Azam", email = "mr.ateeqazam@gmail.com" }]
 license = { text = "CC BY-ND" }
