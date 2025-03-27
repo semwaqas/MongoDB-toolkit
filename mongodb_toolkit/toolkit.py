@@ -5,7 +5,7 @@ from typing import List, Dict, Optional, Any, Tuple, Union
 from pymongo import MongoClient, ASCENDING, DESCENDING
 from pymongo.database import Database
 from pymongo.errors import ConnectionFailure, OperationFailure, ConfigurationError
-from langchain.tools import Tool, tool # Import tool decorator as an alternative
+from langchain.tools import Tool, StructuredTool
 from pydantic.v1 import BaseModel # Ensure using v1 if needed
 
 # Import models and utils
@@ -84,10 +84,24 @@ class MongoToolkit:
             self._client = None
             self._db = None
 
+    def _get_db_schema_wrapper(self, **kwargs):
+        """Internal wrapper to unpack args for get_db_schema from Pydantic."""
+        try:
+            # Validate input using the Pydantic model
+            validated_args = GetSchemaInput(**kwargs)
+        except Exception as e: # Catch Pydantic validation errors
+             raise ValidationError(f"Invalid input arguments for get_database_schema: {e}") from e
+
+        # Call the original function with unpacked arguments
+        return self.get_db_schema(
+            target_collection_name=validated_args.target_collection_name,
+            sample_size=validated_args.sample_size
+        )
+
     def get_db_schema(
         self,
         target_collection_name: Optional[str] = None,
-        sample_size: int = 100
+        sample_size: int = 10
     ) -> Dict[str, Any]:
         """
         Generates and returns the inferred schema for collections within the database.
@@ -154,11 +168,17 @@ class MongoToolkit:
 
     def _execute_query_wrapper(self, **kwargs):
         """Internal wrapper to unpack args from the Pydantic model."""
-        # Validate input using the Pydantic model (optional but good)
         try:
+            # Instantiate the Pydantic model to validate kwargs
             validated_args = ExecuteQueryInput(**kwargs)
         except Exception as e: # Catch Pydantic validation errors
              raise ValidationError(f"Invalid input arguments for execute_find_query: {e}") from e
+
+        # Prepare sort argument if present
+        sort_list = None
+        if validated_args.sort:
+             # Convert SortItem models back to dicts for the next function call
+             sort_list = [item.dict() for item in validated_args.sort]
 
         # Call the original function with unpacked arguments
         return self.execute_mongodb_query(
@@ -167,10 +187,10 @@ class MongoToolkit:
             projection=validated_args.projection,
             limit=validated_args.limit,
             skip=validated_args.skip,
-            # Pass sort as list of dicts, the main func handles conversion
-            sort=[item.dict() for item in validated_args.sort] if validated_args.sort else None
+            sort=sort_list # Pass the list of dicts
         )
 
+    # --- (Original execute_mongodb_query function remains the same) ---
     def execute_mongodb_query(
         self,
         collection_name: str,
@@ -180,7 +200,7 @@ class MongoToolkit:
         skip: int = 0,
         sort: Optional[List[Dict[str, Any]]] = None # Receives list of dicts
     ) -> List[Dict[str, Any]]:
-
+        # ... (implementation remains the same - including internal sort processing) ...
         db = self._get_db()
         try:
             collection = db[collection_name]
@@ -189,7 +209,10 @@ class MongoToolkit:
 
         print(f"Executing find on {self.db_name}.{collection_name}")
         print(f"  Filter: {query_filter}")
-        # (Add optional print statements for projection, limit, skip, sort)
+        if projection: print(f"  Projection: {projection}")
+        if limit > 0: print(f"  Limit: {limit}")
+        if skip > 0: print(f"  Skip: {skip}")
+
 
         processed_sort: Optional[List[Tuple[str, int]]] = None
         if sort:
@@ -211,11 +234,9 @@ class MongoToolkit:
                 cursor = cursor.sort(processed_sort)
             if skip > 0:
                 cursor = cursor.skip(skip)
-            if limit > 0: # Apply limit if greater than 0
+            if limit > 0:
                 cursor = cursor.limit(limit)
             elif limit == 0:
-                # If limit is explicitly 0, pymongo defaults to no limit, which is fine.
-                # Some APIs might expect a large number for "all", but 0 is standard no-limit here.
                  print("  Limit: No limit (0)")
 
 
@@ -232,16 +253,25 @@ class MongoToolkit:
             print(msg, file=sys.stderr)
             raise ExecutionError(msg) from e
 
+
     @lru_cache(maxsize=1)
     def get_tools(self) -> List[Tool]:
         """
         Returns a list of configured LangChain tools bound to this toolkit instance.
         """
         print("Generating LangChain tools for MongoToolkit...")
-        schema_tool = Tool.from_function(
+
+        schema_tool = StructuredTool.from_function(
             name="get_mongodb_database_schema",
-            description=f"Use this tool to get the schema of collections within the '{self.db_name}' MongoDB database. Provide an optional 'target_collection_name' to get schema for only one collection, and 'sample_size' to control accuracy vs speed.",
-            func=self.get_db_schema,
+            description=( # Keep the detailed description
+                f"Use this tool to get the schema of collections within the '{self.db_name}' MongoDB database. "
+                "This is essential for understanding data structure before creating queries. "
+                "ARGUMENTS: "
+                "- target_collection_name (Optional[str]): The specific collection to get the schema for. "
+                "**IMPORTANT: Only provide this if the user explicitly names a collection OR if you are certain based on previous context. If unsure, OMIT this argument to get schemas for ALL collections.** "
+                "- sample_size (int, default=10): Number of documents to sample for inference."
+            ),
+            func=self._get_db_schema_wrapper, # Use the wrapper
             args_schema=GetSchemaInput
         )
 
@@ -252,11 +282,16 @@ class MongoToolkit:
             args_schema=ValidateSyntaxInput
         )
 
-        execute_tool = Tool.from_function(
+        execute_tool = StructuredTool.from_function(
             name="execute_mongodb_find_query",
-            description=f"Use this tool to execute a MongoDB 'find' query against a specific collection in the '{self.db_name}' database after validating its syntax. Provide arguments as a single JSON object matching the required schema (collection_name, query_filter, etc.). Returns a list of matching documents.",
-            func=self._execute_query_wrapper, # Use the wrapper here
-            args_schema=ExecuteQueryInput      # Schema defines the expected keys in the wrapper's kwargs
+            description=(
+                f"Use this tool to execute a MongoDB 'find' query against a specific collection in the '{self.db_name}' database "
+                f"after validating its syntax. Provide arguments like 'collection_name', 'query_filter', etc. "
+                f"By default, results are limited to 10 documents. You can override this by providing a different 'limit' value (use 0 for no limit). "
+                f"Returns a list of matching documents."
+            ),
+            func=self._execute_query_wrapper,
+            args_schema=ExecuteQueryInput
         )
 
         return [schema_tool, validate_tool, execute_tool]
